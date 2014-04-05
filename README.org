@@ -1,4 +1,5 @@
-* A simple I2C slave written in VHDL
+* Intro
+This is a simple I2C slave written in VHDL.
 The slave supports single and repeated reads/writes, as well as quick read/writes (master can switch between read and write commands while also addressing different slaves in quick succession without having to write STOP command on the bus).
 Clock stretching is not implemented, so make sure that data to master is ready upon request.
 
