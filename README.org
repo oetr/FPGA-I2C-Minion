@@ -16,6 +16,6 @@ The 7 bits of the =SLAVE_ADDR= are usually given in the most significant bit fir
 For example, a 7 bit address "0000011" corresponds to decimal 3 on the slave, is actually a 6 on the master because the LSB is never sent.
 
 A testbench is provided in the design.
-To run the testbench, execute ./tb_sim.sh shell script.
+To run the testbench, execute =./tb_sim.sh= shell script.
 To be able to run the script, you need to have ghdl.
 The testbench should also work in ModelSim with no problems.

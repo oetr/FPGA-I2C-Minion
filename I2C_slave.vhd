@@ -5,7 +5,7 @@ use work.txt_util.all;
 ------------------------------------------------------------
 entity I2C_slave is
   generic (
-    SLAVE_ADDR : std_logic_vector(6 downto 0) := "0000011");
+    SLAVE_ADDR : std_logic_vector(6 downto 0));
   port (
     scl              : inout std_logic;
     sda              : inout std_logic;

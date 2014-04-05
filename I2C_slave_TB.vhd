@@ -16,23 +16,24 @@ entity I2C_slave_TB is
 end I2C_slave_TB;
 ------------------------------------------------------------------------
 architecture Testbench of I2C_slave_TB is
-  file output_file        : text open write_mode is "Output.txt";
-  constant T              : time                         := 20 ns;  -- clk period
-  constant TH_I2C         : time                         := 100 ns;  -- i2c clk quarter period(kbis)
-  constant T_MUL          : integer                      := 2;  -- i2c clk quarter period(kbis)
-  constant T_HALF         : integer                      := (TH_I2C*T_MUL*2) / T;  -- i2c halfclk period
-  constant T_QUARTER      : integer                      := (TH_I2C*T_MUL) / T;  -- i2c quarterclk period
-  signal scl_test         : std_logic;
-  signal sda_test         : std_logic;
-  signal clk_test         : std_logic;
-  signal rst_test         : std_logic;
-  signal state_dbg        : integer                      := 0;
-  signal received_data    : std_logic_vector(7 downto 0) := (others => '0');
-  signal ack              : std_logic                    := '0';
-  signal read_req         : std_logic                    := '0';
-  signal data_to_master   : std_logic_vector(7 downto 0) := (others => '0');
-  signal data_valid       : std_logic                    := '0';
-  signal data_from_master : std_logic_vector(7 downto 0) := (others => '0');
+  file output_file            : text open write_mode is "Output.txt";
+  constant T                  : time                         := 20 ns;  -- clk period
+  constant TH_I2C             : time                         := 100 ns;  -- i2c clk quarter period(kbis)
+  constant T_MUL              : integer                      := 2;  -- i2c clk quarter period(kbis)
+  constant T_HALF             : integer                      := (TH_I2C*T_MUL*2) / T;  -- i2c halfclk period
+  constant T_QUARTER          : integer                      := (TH_I2C*T_MUL) / T;  -- i2c quarterclk period
+  signal scl_test             : std_logic;
+  signal sda_test             : std_logic;
+  signal clk_test             : std_logic;
+  signal rst_test             : std_logic;
+  signal state_dbg            : integer                      := 0;
+  signal received_data        : std_logic_vector(7 downto 0) := (others => '0');
+  signal ack                  : std_logic                    := '0';
+  signal read_req             : std_logic                    := '0';
+  signal data_to_master       : std_logic_vector(7 downto 0) := (others => '0');
+  signal data_valid           : std_logic                    := '0';
+  signal data_from_master     : std_logic_vector(7 downto 0) := (others => '0');
+  signal data_from_master_reg : std_logic_vector(7 downto 0) := (others => '0');
 begin
 
   ---- Design Under Verification -----------------------------------------
@@ -63,6 +64,19 @@ begin
 
   ---- Reset asserted for T/2 --------------------------------------------
   rst_test <= '1', '0' after T/2;
+
+
+  ----------------------------------------------------------
+  -- Save data received from the master in a register
+  ----------------------------------------------------------
+  process (clk_test) is
+  begin
+    if rising_edge(clk_test) then
+      if data_valid = '1' then
+        data_from_master_reg <= data_from_master;
+      end if;
+    end if;
+  end process;
 
   ----- Test vector generation -------------------------------------------
   TESTS : process is
@@ -353,7 +367,7 @@ begin
     sda_test <= '1';
 
     i2c_write("0000011", "11111111");
-    assert received_data = "11111111"
+    assert data_from_master_reg = "11111111"
       report "test: 0 not passed"
       severity warning;
 
@@ -361,17 +375,18 @@ begin
     wait until rising_edge(clk_test);
     for i in 0 to 127 loop
       i2c_write("0000011", std_logic_vector(to_unsigned(i, 8)));
-      assert i = to_integer(unsigned(data_from_master))
+      assert i = to_integer(unsigned(data_from_master_reg))
         report "writing test: " & integer'image(i) & " not passed"
         severity warning;
     end loop;
 
     -- read some bytes
     for i in 0 to 127 loop
-      data_to_master <= std_logic_vector(to_unsigned(i,8));
+      data_to_master <= std_logic_vector(to_unsigned(i, 8));
       i2c_read("0000011", received_data);
       assert i = to_integer(unsigned(received_data))
-        report "reading test: " & integer'image(i) & " not passed"
+        report "reading test: " & integer'image(i) & " not passed" & "test"
+        --& LF & "expected: " & integer'image(i) & ", got: " & to_integer(unsigned(received_data))
         severity warning;
     end loop;
 
