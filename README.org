@@ -1,5 +1,9 @@
 A simple I2C slave written in VHDL.
 
+The slave supports single and repeated reads/writes.
+Quick command/address change (start-addr-w-data-ack-start-addr-...) is not supported yet.
+As of now, a =stop= is necessary.
+
 The module can be used through the following interface:
 #+BEGIN_SRC vhdl
   read_req         : out std_logic;
