@@ -11,7 +11,7 @@ entity I2C_slave is
     sda              : inout std_logic;
     clk              : in    std_logic;
     rst              : in    std_logic;
-    -- user interface
+    -- User interface
     read_req         : out   std_logic;
     data_to_master   : in    std_logic_vector(7 downto 0);
     data_valid       : out   std_logic;
@@ -66,7 +66,7 @@ begin
       -- Delay SDA by 1 and 2 clock cycles
       sda_reg        <= sda;
       sda_prev_reg   <= sda_reg;
-      -- detect rising and falling SCL
+      -- Detect rising and falling SCL
       scl_rising_reg <= '0';
       if scl_prev_reg = '0' and scl_reg = '1' then
         scl_rising_reg <= '1';
@@ -76,7 +76,7 @@ begin
         scl_falling_reg <= '1';
       end if;
 
-      -- Detect I2C Start and Stop conditions
+      -- Detect I2C START condition
       start_reg <= '0';
       stop_reg  <= '0';
       if scl_reg = '1' and scl_prev_reg = '1' and
@@ -85,7 +85,7 @@ begin
         stop_reg  <= '0';
       end if;
 
-      -- start
+      -- Detect I2C STOP condition
       if scl_prev_reg = '1' and scl_reg = '1' and
         sda_prev_reg = '0' and sda_reg = '1' then
         start_reg <= '0';
@@ -102,7 +102,6 @@ begin
   begin
     if rising_edge(clk) then
       -- Default assignments
-      -- Slave writes on sda
       sda_o_reg      <= '0';
       sda_wen_reg    <= '0';
       -- User interface
@@ -221,11 +220,11 @@ begin
             end if;
           end if;
 
-        -- wait for start or stop to get out of this state
+        -- Wait for START or STOP to get out of this state
         when i2c_read_stop =>
           null;
 
-        -- wait for start or stop to get out of this state
+        -- Wait for START or STOP to get out of this state
         when others =>
           assert false
             report ("I2C: slave address: " & str(SLAVE_ADDR) &
@@ -241,7 +240,7 @@ begin
         state_reg          <= i2c_get_address_and_cmd;
         bits_processed_reg <= 0;
       end if;
-      
+
       if stop_reg = '1' then
         state_reg          <= i2c_idle;
         bits_processed_reg <= 0;
@@ -263,9 +262,9 @@ begin
   ----------------------------------------------------------
   -- User interface
   ----------------------------------------------------------
-  -- master writes
+  -- Master writes
   data_valid       <= data_valid_reg;
   data_from_master <= data_reg;
-  -- master reads
+  -- Master reads
   read_req         <= read_req_reg;
 end architecture arch;
