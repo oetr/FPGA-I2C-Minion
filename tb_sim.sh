@@ -12,7 +12,7 @@ ghdl -i *.vhd
 ## Simulating I2C_slave_TB
 ghdl -m I2C_slave_TB
 ## Verilog structures only
-ghdl -r I2C_slave_TB --vcd=./I2C_slave.vcd
+##ghdl -r I2C_slave_TB --vcd=./I2C_slave.vcd
 # Uncomment the following line if you want to see
 # VHDL structures (arrays, states, etc.)
-# ghdl -r I2C_slave_TB --wave=./I2C_slave.ghw 
+ghdl -r I2C_slave_TB --wave=./I2C_slave.ghw 

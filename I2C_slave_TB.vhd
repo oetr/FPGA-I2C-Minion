@@ -264,6 +264,39 @@ begin
       i2c_stop;
     end procedure i2c_write;
 
+    -- write to I2C bus
+    procedure i2c_quick_write (
+      constant address : in std_logic_vector(6 downto 0);
+      constant data    : in std_logic_vector(7 downto 0)) is
+    begin
+      state_dbg <= 0;
+      i2c_start;
+      state_dbg <= 1;
+      i2c_send_address(address);
+      state_dbg <= 2;
+      i2c_set_write;
+      state_dbg <= 3;
+      -- dummy read ACK--don't care, because we are testing
+      -- I2C slave
+      i2c_read_ack(ack);
+      if ack = '0' then
+        state_dbg <= 6;
+        i2c_stop;
+        ack       <= '0';
+        return;
+      end if;
+      state_dbg <= 4;
+      i2c_send_byte(data);
+      state_dbg <= 5;
+      i2c_read_ack(ack);
+      scl_test  <= '0';
+      sda_test  <= '0';
+      i2c_wait_quarter_clock;
+      scl_test  <= '1';
+      sda_test  <= '1';
+      i2c_wait_quarter_clock;
+    end procedure i2c_quick_write;
+
     -- read I2C bus
     procedure i2c_write_bytes (
       constant address   : in std_logic_vector(6 downto 0);
@@ -327,6 +360,39 @@ begin
       i2c_stop;
     end procedure i2c_read;
 
+    -- read from I2C bus
+    procedure i2c_quick_read (
+      constant address : in  std_logic_vector(6 downto 0);
+      signal data      : out std_logic_vector(7 downto 0)) is
+    begin
+      state_dbg <= 0;
+      i2c_start;
+      state_dbg <= 1;
+      i2c_send_address(address);
+      state_dbg <= 2;
+      i2c_set_read;
+      state_dbg <= 3;
+      -- dummy read ACK--don't care, because we are testing
+      -- I2C slave
+      i2c_read_ack(ack);
+      if ack = '0' then
+        state_dbg <= 6;
+        i2c_stop;
+        return;
+      end if;
+      ack       <= '0';
+      state_dbg <= 4;
+      i2c_receive_byte(data);
+      state_dbg <= 5;
+      i2c_write_nack;
+      scl_test  <= '0';
+      sda_test  <= '0';
+      i2c_wait_quarter_clock;
+      scl_test  <= '1';
+      sda_test  <= '1';
+      i2c_wait_quarter_clock;
+    end procedure i2c_quick_read;
+
 
     -- read I2C bus
     procedure i2c_read_bytes (
@@ -371,7 +437,7 @@ begin
       report "test: 0 not passed"
       severity warning;
 
-    -- write some bytes
+    -- Repeated writes
     wait until rising_edge(clk_test);
     for i in 0 to 127 loop
       i2c_write("0000011", std_logic_vector(to_unsigned(i, 8)));
@@ -380,7 +446,7 @@ begin
         severity warning;
     end loop;
 
-    -- read some bytes
+    -- Repeated reads
     for i in 0 to 127 loop
       data_to_master <= std_logic_vector(to_unsigned(i, 8));
       i2c_read("0000011", received_data);
@@ -390,11 +456,24 @@ begin
         severity warning;
     end loop;
 
+    --------------------------------------------------------
+    -- Reads, writes from wrong slave addresses
+    -- this should cause some assertion notes
+    --------------------------------------------------------
     i2c_write_bytes("1000011", 100);
-    i2c_write_bytes("0000011", 15);
     i2c_read ("0000001", received_data);
     i2c_read_bytes ("0000010", 300, received_data);
-    i2c_read_bytes ("0000011", 15, received_data);
+
+    --------------------------------------------------------
+    -- Quick read/write
+    --------------------------------------------------------
+    print("quick write");
+    i2c_quick_write("0000011", "10101010");
+    i2c_quick_write("0000011", "10101011");
+    i2c_quick_write("0000011", "10101111");
+    i2c_quick_read("0000011", received_data);
+    state_dbg <= 6;
+    i2c_stop;
 
 
     wait until rising_edge(clk_test);

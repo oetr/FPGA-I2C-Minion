@@ -241,6 +241,11 @@ begin
       --------------------------------------------------------
       -- Reset counter and state on start/stop
       --------------------------------------------------------
+      if start_reg = '1' then
+        state_reg          <= i2c_get_address_and_cmd;
+        bits_processed_reg <= 0;
+      end if;
+      
       if stop_reg = '1' then
         state_reg          <= i2c_idle;
         bits_processed_reg <= 0;
