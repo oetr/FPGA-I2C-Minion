@@ -20,11 +20,7 @@ end entity I2C_slave;
 ------------------------------------------------------------
 architecture arch of I2C_slave is
   type state_t is (i2c_idle, i2c_get_address_and_cmd,
-                   -- addr acknowledge
-                   i2c_answer_ack_start,
-                   -- write 
-                   i2c_write,
-                   -- read
+                   i2c_answer_ack_start, i2c_write,
                    i2c_read, i2c_read_ack_start,
                    i2c_read_ack_got_rising, i2c_read_stop);
   -- I2C state management
