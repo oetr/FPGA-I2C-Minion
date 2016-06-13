@@ -4,7 +4,7 @@
 -- File       : I2C_slave_TB
 -- Author     : Peter Samarin <peter.samarin@gmail.com>
 -----------------------------------------------------------------------------
--- Copyright (c) 2014 Peter Samarin
+-- Copyright (c) 2016 Peter Samarin
 -----------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
@@ -16,7 +16,6 @@ entity I2C_slave_TB is
 end I2C_slave_TB;
 ------------------------------------------------------------------------
 architecture Testbench of I2C_slave_TB is
-  file output_file            : text open write_mode is "Output.txt";
   constant T                  : time                         := 20 ns;  -- clk period
   constant TH_I2C             : time                         := 100 ns;  -- i2c clk quarter period(kbis)
   constant T_MUL              : integer                      := 2;  -- i2c clk quarter period(kbis)
@@ -432,12 +431,19 @@ begin
     scl_test <= '1';
     sda_test <= '1';
 
+    print("----------------- Testing a single write ------------------");
     i2c_write("0000011", "11111111");
     assert data_from_master_reg = "11111111"
       report "test: 0 not passed"
       severity warning;
 
-    -- Repeated writes
+    print("----------------- Testing a single write ------------------");
+    i2c_write("0000011", "11111010");
+    assert data_from_master_reg = "11111010"
+      report "test: 0 not passed"
+      severity warning;
+
+    print("----------------- Testing repeated writes -----------------");
     wait until rising_edge(clk_test);
     for i in 0 to 127 loop
       i2c_write("0000011", std_logic_vector(to_unsigned(i, 8)));
@@ -446,20 +452,21 @@ begin
         severity warning;
     end loop;
 
-    -- Repeated reads
+    print("----------------- Testing repeated reads ------------------");
     for i in 0 to 127 loop
       data_to_master <= std_logic_vector(to_unsigned(i, 8));
       i2c_read("0000011", received_data);
       assert i = to_integer(unsigned(received_data))
         report "reading test: " & integer'image(i) & " not passed" & "test"
-        --& LF & "expected: " & integer'image(i) & ", got: " & to_integer(unsigned(received_data))
         severity warning;
     end loop;
 
     --------------------------------------------------------
     -- Reads, writes from wrong slave addresses
-    -- this should cause some assertion notes
+    -- this should cause some assertion notes (needs manual
+    -- confirmation)
     --------------------------------------------------------
+    print("----------------- Testing wrong addresses -----------------");
     i2c_write_bytes("1000011", 100);
     i2c_read ("0000001", received_data);
     i2c_read_bytes ("0000010", 300, received_data);
@@ -467,14 +474,14 @@ begin
     --------------------------------------------------------
     -- Quick read/write
     --------------------------------------------------------
-    print("quick write");
+    print("----------------- Testing quick write --------------------");
     i2c_quick_write("0000011", "10101010");
     i2c_quick_write("0000011", "10101011");
     i2c_quick_write("0000011", "10101111");
+    data_to_master <= std_logic_vector(to_unsigned(255, 8));
     i2c_quick_read("0000011", received_data);
     state_dbg <= 6;
     i2c_stop;
-
 
     wait until rising_edge(clk_test);
     assert false report "simulation completed successfully" severity failure;

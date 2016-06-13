@@ -19,12 +19,12 @@ entity I2C_slave is
 end entity I2C_slave;
 ------------------------------------------------------------
 architecture arch of I2C_slave is
-  type state_t is (i2c_idle, i2c_get_address_and_cmd,
-                   i2c_answer_ack_start, i2c_write,
-                   i2c_read, i2c_read_ack_start,
-                   i2c_read_ack_got_rising, i2c_read_stop);
+  type state_t is (idle, get_address_and_cmd,
+                   answer_ack_start, write,
+                   read, read_ack_start,
+                   read_ack_got_rising, read_stop);
   -- I2C state management
-  signal state_reg          : state_t              := i2c_idle;
+  signal state_reg          : state_t              := idle;
   signal cmd_reg            : std_logic            := '0';
   signal bits_processed_reg : integer range 0 to 8 := 0;
   signal continue_reg       : std_logic            := '0';
@@ -36,17 +36,14 @@ architecture arch of I2C_slave is
   signal scl_falling_reg : std_logic := '0';
 
   -- Address and data received from master
-  signal addr_reg : std_logic_vector(6 downto 0) := (others => '0');
-  signal data_reg : std_logic_vector(7 downto 0) := (others => '0');
+  signal addr_reg             : std_logic_vector(6 downto 0) := (others => '0');
+  signal data_reg             : std_logic_vector(6 downto 0) := (others => '0');
+  signal data_from_master_reg : std_logic_vector(7 downto 0) := (others => '0');
 
-  -- Delayed SCL (by 1 clock cycle, and by 2 clock cycles)
-  signal scl_reg      : std_logic := '1';
   signal scl_prev_reg : std_logic := '1';
   -- Slave writes on scl
   signal scl_wen_reg  : std_logic := '0';
   signal scl_o_reg    : std_logic := '0';
-  -- Delayed SDA (1 clock cycle, and 2 clock cycles)
-  signal sda_reg      : std_logic := '1';
   signal sda_prev_reg : std_logic := '1';
   -- Slave writes on sda
   signal sda_wen_reg  : std_logic := '0';
@@ -61,33 +58,31 @@ begin
   begin
     if rising_edge(clk) then
       -- Delay SCL by 1 and 2 clock cycles
-      scl_reg        <= scl;
-      scl_prev_reg   <= scl_reg;
+      scl_prev_reg   <= scl;
       -- Delay SDA by 1 and 2 clock cycles
-      sda_reg        <= sda;
-      sda_prev_reg   <= sda_reg;
+      sda_prev_reg   <= sda;
       -- Detect rising and falling SCL
       scl_rising_reg <= '0';
-      if scl_prev_reg = '0' and scl_reg = '1' then
+      if scl_prev_reg = '0' and scl = '1' then
         scl_rising_reg <= '1';
       end if;
       scl_falling_reg <= '0';
-      if scl_prev_reg = '1' and scl_reg = '0' then
+      if scl_prev_reg = '1' and scl = '0' then
         scl_falling_reg <= '1';
       end if;
 
       -- Detect I2C START condition
       start_reg <= '0';
       stop_reg  <= '0';
-      if scl_reg = '1' and scl_prev_reg = '1' and
-        sda_prev_reg = '1' and sda_reg = '0' then
+      if scl = '1' and scl_prev_reg = '1' and
+        sda_prev_reg = '1' and sda = '0' then
         start_reg <= '1';
         stop_reg  <= '0';
       end if;
 
       -- Detect I2C STOP condition
-      if scl_prev_reg = '1' and scl_reg = '1' and
-        sda_prev_reg = '0' and sda_reg = '1' then
+      if scl_prev_reg = '1' and scl = '1' and
+        sda_prev_reg = '0' and sda = '1' then
         start_reg <= '0';
         stop_reg  <= '1';
       end if;
@@ -110,27 +105,27 @@ begin
 
       case state_reg is
 
-        when i2c_idle =>
+        when idle =>
           if start_reg = '1' then
-            state_reg          <= i2c_get_address_and_cmd;
+            state_reg          <= get_address_and_cmd;
             bits_processed_reg <= 0;
           end if;
 
-        when i2c_get_address_and_cmd =>
+        when get_address_and_cmd =>
           if scl_rising_reg = '1' then
             if bits_processed_reg < 7 then
               bits_processed_reg             <= bits_processed_reg + 1;
-              addr_reg(6-bits_processed_reg) <= sda_reg;
+              addr_reg(6-bits_processed_reg) <= sda;
             elsif bits_processed_reg = 7 then
               bits_processed_reg <= bits_processed_reg + 1;
-              cmd_reg            <= sda_reg;
+              cmd_reg            <= sda;
             end if;
           end if;
 
           if bits_processed_reg = 8 and scl_falling_reg = '1' then
             bits_processed_reg <= 0;
             if addr_reg = SLAVE_ADDR then  -- check req address
-              state_reg <= i2c_answer_ack_start;
+              state_reg <= answer_ack_start;
               if cmd_reg = '1' then  -- issue read request 
                 read_req_reg       <= '1';
                 data_to_master_reg <= data_to_master;
@@ -140,54 +135,54 @@ begin
                 report ("I2C: slave address: " & str(SLAVE_ADDR) &
                         ", requested address: " & str(addr_reg))
                 severity note;
-              state_reg <= i2c_idle;
+              state_reg <= idle;
             end if;
           end if;
 
         ----------------------------------------------------
         -- I2C acknowledge to master
         ----------------------------------------------------
-        when i2c_answer_ack_start =>
+        when answer_ack_start =>
           sda_wen_reg <= '1';
           sda_o_reg   <= '0';
           if scl_falling_reg = '1' then
             if cmd_reg = '0' then
-              state_reg <= i2c_write;
+              state_reg <= write;
             else
-              state_reg <= i2c_read;
+              state_reg <= read;
             end if;
           end if;
 
         ----------------------------------------------------
         -- WRITE
         ----------------------------------------------------
-        when i2c_write =>
+        when write =>
           if scl_rising_reg = '1' then
-            if bits_processed_reg <= 7 then
-              data_reg(7-bits_processed_reg) <= sda_reg;
-              bits_processed_reg             <= bits_processed_reg + 1;
-            end if;
-            if bits_processed_reg = 7 then
-              data_valid_reg <= '1';
+            bits_processed_reg <= bits_processed_reg + 1;
+            if bits_processed_reg < 7 then
+              data_reg(6-bits_processed_reg) <= sda;
+            else
+              data_from_master_reg <= data_reg & sda;
+              data_valid_reg       <= '1';
             end if;
           end if;
 
           if scl_falling_reg = '1' and bits_processed_reg = 8 then
-            state_reg          <= i2c_answer_ack_start;
+            state_reg          <= answer_ack_start;
             bits_processed_reg <= 0;
           end if;
 
         ----------------------------------------------------
         -- READ: send data to master
         ----------------------------------------------------
-        when i2c_read =>
+        when read =>
           sda_wen_reg <= '1';
           sda_o_reg   <= data_to_master_reg(7-bits_processed_reg);
           if scl_falling_reg = '1' then
             if bits_processed_reg < 7 then
               bits_processed_reg <= bits_processed_reg + 1;
             elsif bits_processed_reg = 7 then
-              state_reg          <= i2c_read_ack_start;
+              state_reg          <= read_ack_start;
               bits_processed_reg <= 0;
             end if;
           end if;
@@ -195,33 +190,33 @@ begin
         ----------------------------------------------------
         -- I2C read master acknowledge
         ----------------------------------------------------
-        when i2c_read_ack_start =>
+        when read_ack_start =>
           if scl_rising_reg = '1' then
-            state_reg <= i2c_read_ack_got_rising;
-            if sda_reg = '1' then       -- nack = stop read
+            state_reg <= read_ack_got_rising;
+            if sda = '1' then           -- nack = stop read
               continue_reg <= '0';
-            else                   -- ack = continue read
+            else               -- ack = continue read
               continue_reg       <= '1';
               read_req_reg       <= '1';  -- request reg byte
               data_to_master_reg <= data_to_master;
             end if;
           end if;
 
-        when i2c_read_ack_got_rising =>
+        when read_ack_got_rising =>
           if scl_falling_reg = '1' then
             if continue_reg = '1' then
               if cmd_reg = '0' then
-                state_reg <= i2c_write;
+                state_reg <= write;
               else
-                state_reg <= i2c_read;
+                state_reg <= read;
               end if;
             else
-              state_reg <= i2c_read_stop;
+              state_reg <= read_stop;
             end if;
           end if;
 
         -- Wait for START or STOP to get out of this state
-        when i2c_read_stop =>
+        when read_stop =>
           null;
 
         -- Wait for START or STOP to get out of this state
@@ -237,17 +232,17 @@ begin
       -- Reset counter and state on start/stop
       --------------------------------------------------------
       if start_reg = '1' then
-        state_reg          <= i2c_get_address_and_cmd;
+        state_reg          <= get_address_and_cmd;
         bits_processed_reg <= 0;
       end if;
 
       if stop_reg = '1' then
-        state_reg          <= i2c_idle;
+        state_reg          <= idle;
         bits_processed_reg <= 0;
       end if;
 
       if rst = '1' then
-        state_reg <= i2c_idle;
+        state_reg <= idle;
       end if;
     end if;
   end process;
@@ -264,7 +259,7 @@ begin
   ----------------------------------------------------------
   -- Master writes
   data_valid       <= data_valid_reg;
-  data_from_master <= data_reg;
+  data_from_master <= data_from_master_reg;
   -- Master reads
   read_req         <= read_req_reg;
 end architecture arch;

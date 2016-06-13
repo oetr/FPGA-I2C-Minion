@@ -2,4 +2,12 @@
 !*.vhd
 !*.sh
 !*.org
+
+!*.png
+
+# directories
+!pics/
+
 !.gitignore
+
+
