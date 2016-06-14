@@ -3,10 +3,11 @@ SIM_DIR=./sim
 # if the file doesn't exist, try to create folder
 if [ ! -f $SIM_DIR ] ; then
     mkdir -p $SIM_DIR
+    cd $SIM_DIR
+else
+    cd $SIM_DIR
+    rm *.vhd *.o *.cf
 fi
-
-cd $SIM_DIR
-rm *.vhd *.o *.cf
 
 ## Getting proper files from the main directory
 cp ../*.vhd .

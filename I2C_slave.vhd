@@ -1,7 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use work.txt_util.all;
 ------------------------------------------------------------
 entity I2C_slave is
   generic (
@@ -132,8 +131,7 @@ begin
               end if;
             else
               assert false
-                report ("I2C: slave address: " & str(SLAVE_ADDR) &
-                        ", requested address: " & str(addr_reg))
+                report ("I2C: target/slave address mismatch (data is being sent to another slave).")
                 severity note;
               state_reg <= idle;
             end if;
@@ -222,10 +220,9 @@ begin
         -- Wait for START or STOP to get out of this state
         when others =>
           assert false
-            report ("I2C: slave address: " & str(SLAVE_ADDR) &
-                    "ended up in an impossible state.")
-            severity note;
-          null;
+            report ("I2C: error: ended in an impossible state.")
+            severity error;
+          state_reg <= idle;
       end case;
 
       --------------------------------------------------------
