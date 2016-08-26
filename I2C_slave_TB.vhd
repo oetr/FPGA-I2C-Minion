@@ -11,20 +11,25 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use std.textio.all;
 use work.txt_util.all;
+use ieee.math_real.all;  -- using uniform(seed1,seed2,rand)
 ------------------------------------------------------------------------
 entity I2C_slave_TB is
 end I2C_slave_TB;
 ------------------------------------------------------------------------
 architecture Testbench of I2C_slave_TB is
-  constant T                  : time                         := 20 ns;  -- clk period
-  constant TH_I2C             : time                         := 100 ns;  -- i2c clk quarter period(kbis)
-  constant T_MUL              : integer                      := 2;  -- i2c clk quarter period(kbis)
-  constant T_HALF             : integer                      := (TH_I2C*T_MUL*2) / T;  -- i2c halfclk period
-  constant T_QUARTER          : integer                      := (TH_I2C*T_MUL) / T;  -- i2c quarterclk period
-  signal scl_test             : std_logic;
-  signal sda_test             : std_logic;
-  signal clk_test             : std_logic;
-  signal rst_test             : std_logic;
+  constant T         : time    := 20 ns;   -- clk period
+  constant T_spike   : time    := 1 ns;
+  constant TH_I2C    : time    := 100 ns;  -- i2c clk quarter period(kbis)
+  constant T_MUL     : integer := 2;  -- i2c clk quarter period(kbis)
+  constant T_HALF    : integer := (TH_I2C*T_MUL*2) / T;  -- i2c halfclk period
+  constant T_QUARTER : integer := (TH_I2C*T_MUL) / T;  -- i2c quarterclk period
+
+  signal scl                  : std_logic                    := '1';
+  signal sda                  : std_logic                    := '1';
+  signal scl_pre_spike        : std_logic                    := '1';
+  signal sda_pre_spike        : std_logic                    := '1';
+  signal clk_test             : std_logic                    := '1';
+  signal rst_test             : std_logic                    := '1';
   signal state_dbg            : integer                      := 0;
   signal received_data        : std_logic_vector(7 downto 0) := (others => '0');
   signal ack                  : std_logic                    := '0';
@@ -33,8 +38,27 @@ architecture Testbench of I2C_slave_TB is
   signal data_valid           : std_logic                    := '0';
   signal data_from_master     : std_logic_vector(7 downto 0) := (others => '0');
   signal data_from_master_reg : std_logic_vector(7 downto 0) := (others => '0');
-  -- simulation
-  shared variable ENDSIM : boolean                          := false;
+
+  -- random spike generation
+  constant MAX_SPIKE_DURATION      : real      := 30000.0;  -- 50ns
+  constant MAX_TIMEOUT_AFTER_SPIKE : real      := 10000.0;  -- 10ns
+  constant P_SPIKE                 : real      := 0.02;
+  signal spike                     : std_logic := '0';
+
+  shared variable seed1                   : positive := 1000;
+  shared variable seed2                   : positive := 2000;
+  shared variable rand_scl, rand_sda      : real;  -- random real-number value in range 0 to 1.0  
+  shared variable scl_spike_duration      : integer  := 0;
+  shared variable timeout_after_scl_spike : integer  := 0;
+  shared variable scl_spike_should_happen : real     := 0.0;
+  shared variable sda_spike_duration      : integer  := 0;
+  shared variable timeout_after_sda_spike : integer  := 0;
+  shared variable sda_spike_should_happen : real     := 0.0;
+
+  -- simulation control
+  shared variable SCL_noise_on : boolean := false;
+  shared variable SDA_noise_on : boolean := false;
+  shared variable ENDSIM       : boolean := false;
 begin
 
   ---- Design Under Verification -----------------------------------------
@@ -43,8 +67,8 @@ begin
       SLAVE_ADDR => "0000011")
     port map (
       -- I2C
-      scl              => scl_test,
-      sda              => sda_test,
+      scl              => scl,
+      sda              => sda,
       -- default signals
       clk              => clk_test,
       rst              => rst_test,
@@ -54,7 +78,7 @@ begin
       data_valid       => data_valid,
       data_from_master => data_from_master);
 
-  ---- Clock running forever ---------------------------------------------
+  ---- DUT clock running forever ----------------------------
   process
   begin
     if ENDSIM = false then
@@ -66,14 +90,67 @@ begin
       wait;
     end if;
   end process;
-  
-  ---- Reset asserted for T/2 --------------------------------------------
+
+  ---- Reset asserted for T/2 ------------------------------
   rst_test <= '1', '0' after T/2;
 
 
-  ----------------------------------------------------------
-  -- Save data received from the master in a register
-  ----------------------------------------------------------
+  ---- SCL spike generator -------------------------
+  process
+  begin
+    if ENDSIM = false then
+      uniform(seed1, seed2, rand_scl);  -- generate random number
+      scl_spike_should_happen := rand_scl;
+      uniform(seed1, seed2, rand_scl);  -- generate random number
+      scl_spike_duration      := integer(rand_scl*MAX_SPIKE_DURATION);
+      uniform(seed1, seed2, rand_scl);  -- generate random number
+      timeout_after_scl_spike := integer(rand_scl*MAX_TIMEOUT_AFTER_SPIKE);
+      if SCL_noise_on then
+        if scl_spike_should_happen < P_spike then
+          scl <= not scl_pre_spike;
+        else
+          scl <= scl_pre_spike;
+        end if;
+      end if;
+      wait for scl_spike_duration * 1 ps;
+      scl <= scl_pre_spike;
+      wait for timeout_after_scl_spike * 1 ps;
+    else
+      wait;
+    end if;
+  end process;
+
+
+  ---- SDA spike generator -------------------------
+  process
+  begin
+    if ENDSIM = false then
+      uniform(seed1, seed2, rand_sda);  -- generate random number
+      sda_spike_should_happen := rand_sda;
+      uniform(seed1, seed2, rand_sda);  -- generate random number
+      sda_spike_duration      := integer(rand_sda*MAX_SPIKE_DURATION);
+      uniform(seed1, seed2, rand_sda);  -- generate random number
+      timeout_after_sda_spike := integer(rand_sda*MAX_TIMEOUT_AFTER_SPIKE);
+      if SDA_noise_on then
+        if sda_spike_should_happen < P_spike then
+          if sda_pre_spike = '1' or sda_pre_spike = '0' then
+            sda <= not sda_pre_spike;
+          end if;
+        else
+          sda <= sda_pre_spike;
+        end if;
+      end if;
+      wait for sda_spike_duration * 1 ps;
+      sda <= sda_pre_spike;
+      wait for timeout_after_sda_spike * 1 ps;
+    else
+      wait;
+    end if;
+  end process;
+
+----------------------------------------------------------
+-- Save data received from the master in a register
+----------------------------------------------------------
   process (clk_test) is
   begin
     if rising_edge(clk_test) then
@@ -83,9 +160,8 @@ begin
     end if;
   end process;
 
-  ----- Test vector generation -------------------------------------------
+----- Test vector generation -------------------------------------------
   TESTS : process is
-
     -- half clock
     procedure i2c_wait_half_clock is
     begin
@@ -106,12 +182,12 @@ begin
     procedure i2c_send_bit (
       constant a_bit : in std_logic) is
     begin
-      scl_test <= '0';
-      sda_test <= a_bit;
+      scl_pre_spike <= '0';
+      sda_pre_spike <= a_bit;
       i2c_wait_quarter_clock;
-      scl_test <= '1';
+      scl_pre_spike <= '1';
       i2c_wait_half_clock;
-      scl_test <= '0';
+      scl_pre_spike <= '0';
       i2c_wait_quarter_clock;
     end procedure i2c_send_bit;
 
@@ -119,14 +195,14 @@ begin
     procedure i2c_receive_bit (
       variable a_bit : out std_logic) is
     begin
-      scl_test <= '0';
-      sda_test <= 'Z';
+      scl_pre_spike <= '0';
+      sda_pre_spike <= 'Z';
       i2c_wait_quarter_clock;
-      scl_test <= '1';
+      scl_pre_spike <= '1';
       i2c_wait_quarter_clock;
-      a_bit    := sda_test;
+      a_bit         := sda;
       i2c_wait_quarter_clock;
-      scl_test <= '0';
+      scl_pre_spike <= '0';
       i2c_wait_quarter_clock;
     end procedure i2c_receive_bit;
 
@@ -164,24 +240,24 @@ begin
     -- START
     procedure i2c_start is
     begin
-      scl_test <= '1';
-      sda_test <= '0';
+      scl_pre_spike <= '1';
+      sda_pre_spike <= '0';
       i2c_wait_half_clock;
-      scl_test <= '1';
+      scl_pre_spike <= '1';
       i2c_wait_quarter_clock;
-      scl_test <= '0';
+      scl_pre_spike <= '0';
       i2c_wait_quarter_clock;
     end procedure i2c_start;
 
     -- STOP
     procedure i2c_stop is
     begin
-      scl_test <= '0';
-      sda_test <= '0';
+      scl_pre_spike <= '0';
+      sda_pre_spike <= '0';
       i2c_wait_quarter_clock;
-      scl_test <= '1';
+      scl_pre_spike <= '1';
       i2c_wait_quarter_clock;
-      sda_test <= '1';
+      sda_pre_spike <= '1';
       i2c_wait_half_clock;
       i2c_wait_half_clock;
     end procedure i2c_stop;
@@ -201,42 +277,42 @@ begin
     -- read ACK
     procedure i2c_read_ack (signal ack : out std_logic) is
     begin
-      scl_test <= '0';
-      sda_test <= 'Z';
+      scl_pre_spike <= '0';
+      sda_pre_spike <= 'Z';
       i2c_wait_quarter_clock;
-      scl_test <= '1';
-      if sda_test = '0' then
+      scl_pre_spike <= '1';
+      if sda = '0' then
         ack <= '1';
       else
         ack <= '0';
         assert false report "No ACK received: expected '0'" severity note;
       end if;
       i2c_wait_half_clock;
-      scl_test <= '0';
+      scl_pre_spike <= '0';
       i2c_wait_quarter_clock;
     end procedure i2c_read_ack;
 
     -- write NACK
     procedure i2c_write_nack is
     begin
-      scl_test <= '0';
-      sda_test <= '1';
+      scl_pre_spike <= '0';
+      sda_pre_spike <= '1';
       i2c_wait_quarter_clock;
-      scl_test <= '1';
+      scl_pre_spike <= '1';
       i2c_wait_half_clock;
-      scl_test <= '0';
+      scl_pre_spike <= '0';
       i2c_wait_quarter_clock;
     end procedure i2c_write_nack;
 
     -- write ACK
     procedure i2c_write_ack is
     begin
-      scl_test <= '0';
-      sda_test <= '0';
+      scl_pre_spike <= '0';
+      sda_pre_spike <= '0';
       i2c_wait_quarter_clock;
-      scl_test <= '1';
+      scl_pre_spike <= '1';
       i2c_wait_half_clock;
-      scl_test <= '0';
+      scl_pre_spike <= '0';
       i2c_wait_quarter_clock;
     end procedure i2c_write_ack;
 
@@ -290,15 +366,15 @@ begin
         ack       <= '0';
         return;
       end if;
-      state_dbg <= 4;
+      state_dbg     <= 4;
       i2c_send_byte(data);
-      state_dbg <= 5;
+      state_dbg     <= 5;
       i2c_read_ack(ack);
-      scl_test  <= '0';
-      sda_test  <= '0';
+      scl_pre_spike <= '0';
+      sda_pre_spike <= '0';
       i2c_wait_quarter_clock;
-      scl_test  <= '1';
-      sda_test  <= '1';
+      scl_pre_spike <= '1';
+      sda_pre_spike <= '1';
       i2c_wait_quarter_clock;
     end procedure i2c_quick_write;
 
@@ -385,16 +461,16 @@ begin
         i2c_stop;
         return;
       end if;
-      ack       <= '0';
-      state_dbg <= 4;
+      ack           <= '0';
+      state_dbg     <= 4;
       i2c_receive_byte(data);
-      state_dbg <= 5;
+      state_dbg     <= 5;
       i2c_write_nack;
-      scl_test  <= '0';
-      sda_test  <= '0';
+      scl_pre_spike <= '0';
+      sda_pre_spike <= '0';
       i2c_wait_quarter_clock;
-      scl_test  <= '1';
-      sda_test  <= '1';
+      scl_pre_spike <= '1';
+      sda_pre_spike <= '1';
       i2c_wait_quarter_clock;
     end procedure i2c_quick_read;
 
@@ -434,8 +510,13 @@ begin
       i2c_stop;
     end procedure i2c_read_bytes;
   begin
-    scl_test <= '1';
-    sda_test <= '1';
+    --------------------------------------------------------
+    -- Turn on noise on SCL
+    --------------------------------------------------------
+    SCL_noise_on := true;
+
+    scl_pre_spike <= '1';
+    sda_pre_spike <= '1';
 
     print("----------------- Testing a single write ------------------");
     i2c_write("0000011", "11111111");
@@ -468,16 +549,6 @@ begin
     end loop;
 
     --------------------------------------------------------
-    -- Reads, writes from wrong slave addresses
-    -- this should cause some assertion notes (needs manual
-    -- confirmation)
-    --------------------------------------------------------
-    print("----------------- Testing wrong addresses -----------------");
-    i2c_write_bytes("1000011", 100);
-    i2c_read ("0000001", received_data);
-    i2c_read_bytes ("0000010", 300, received_data);
-
-    --------------------------------------------------------
     -- Quick read/write
     --------------------------------------------------------
     print("----------------- Testing quick write --------------------");
@@ -486,10 +557,22 @@ begin
     i2c_quick_write("0000011", "10101111");
     data_to_master <= std_logic_vector(to_unsigned(255, 8));
     i2c_quick_read("0000011", received_data);
-    state_dbg <= 6;
+    state_dbg      <= 6;
     i2c_stop;
 
+    --------------------------------------------------------
+    -- Reads, writes from wrong slave addresses
+    -- this should cause some assertion notes (needs manual
+    -- confirmation)
+    --------------------------------------------------------
+    print("----------------- Testing wrong addresses -----------------");
+    print("***************** These tests should all fail *************");
+    i2c_write_bytes("1000011", 100);
+    i2c_read ("0000001", received_data);
+    i2c_read_bytes ("0000010", 300, received_data);
+
     wait until rising_edge(clk_test);
+
     ENDSIM := true;
     wait;
   end process;

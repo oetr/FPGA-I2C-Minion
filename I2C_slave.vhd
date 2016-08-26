@@ -1,3 +1,10 @@
+------------------------------------------------------------
+-- File      : I2C_slave.vhd
+------------------------------------------------------------
+-- Author    : Peter Samarin <peter.samarin@gmail.com>
+------------------------------------------------------------
+-- Copyright (c) 2016 Peter Samarin
+------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -18,6 +25,9 @@ entity I2C_slave is
 end entity I2C_slave;
 ------------------------------------------------------------
 architecture arch of I2C_slave is
+  -- this assumes that system's clock is much faster than SCL
+  constant DEBOUNCING_WAIT_CYCLES : integer   := 4;
+  
   type state_t is (idle, get_address_and_cmd,
                    answer_ack_start, write,
                    read, read_ack_start,
@@ -27,6 +37,12 @@ architecture arch of I2C_slave is
   signal cmd_reg            : std_logic            := '0';
   signal bits_processed_reg : integer range 0 to 8 := 0;
   signal continue_reg       : std_logic            := '0';
+
+  signal scl_reg                  : std_logic := '1';
+  signal sda_reg                  : std_logic := '1';
+  signal scl_debounced            : std_logic := '1';
+  signal sda_debounced            : std_logic := '1';
+  
 
   -- Helpers to figure out next state
   signal start_reg       : std_logic := '0';
@@ -53,35 +69,58 @@ architecture arch of I2C_slave is
   signal read_req_reg       : std_logic                    := '0';
   signal data_to_master_reg : std_logic_vector(7 downto 0) := (others => '0');
 begin
+
+  -- debounce SCL and SDA
+  SCL_debounce : entity work.debounce
+    generic map (
+      WAIT_CYCLES => DEBOUNCING_WAIT_CYCLES)
+    port map (
+      clk        => clk,
+      signal_in  => scl_reg,
+      signal_out => scl_debounced);
+
+  -- it might not make sense to debounce SDA, since master
+  -- and slave can both write to it...
+  SDA_debounce : entity work.debounce
+    generic map (
+      WAIT_CYCLES => DEBOUNCING_WAIT_CYCLES)
+    port map (
+      clk        => clk,
+      signal_in  => sda_reg,
+      signal_out => sda_debounced);
+
   process (clk) is
   begin
     if rising_edge(clk) then
-      -- Delay SCL by 1 and 2 clock cycles
-      scl_prev_reg   <= scl;
-      -- Delay SDA by 1 and 2 clock cycles
-      sda_prev_reg   <= sda;
+      -- save SCL in registers that are used for debouncing
+      scl_reg <= scl;
+      sda_reg <= sda;
+
+      -- Delay debounced SCL and SDA by 1 clock cycle
+      scl_prev_reg   <= scl_debounced;
+      sda_prev_reg   <= sda_debounced;
       -- Detect rising and falling SCL
       scl_rising_reg <= '0';
-      if scl_prev_reg = '0' and scl = '1' then
+      if scl_prev_reg = '0' and scl_debounced = '1' then
         scl_rising_reg <= '1';
       end if;
       scl_falling_reg <= '0';
-      if scl_prev_reg = '1' and scl = '0' then
+      if scl_prev_reg = '1' and scl_debounced = '0' then
         scl_falling_reg <= '1';
       end if;
 
       -- Detect I2C START condition
       start_reg <= '0';
       stop_reg  <= '0';
-      if scl = '1' and scl_prev_reg = '1' and
-        sda_prev_reg = '1' and sda = '0' then
+      if scl_debounced = '1' and scl_prev_reg = '1' and
+        sda_prev_reg = '1' and sda_debounced = '0' then
         start_reg <= '1';
         stop_reg  <= '0';
       end if;
 
       -- Detect I2C STOP condition
-      if scl_prev_reg = '1' and scl = '1' and
-        sda_prev_reg = '0' and sda = '1' then
+      if scl_prev_reg = '1' and scl_debounced = '1' and
+        sda_prev_reg = '0' and sda_debounced = '1' then
         start_reg <= '0';
         stop_reg  <= '1';
       end if;
@@ -114,10 +153,10 @@ begin
           if scl_rising_reg = '1' then
             if bits_processed_reg < 7 then
               bits_processed_reg             <= bits_processed_reg + 1;
-              addr_reg(6-bits_processed_reg) <= sda;
+              addr_reg(6-bits_processed_reg) <= sda_debounced;
             elsif bits_processed_reg = 7 then
               bits_processed_reg <= bits_processed_reg + 1;
-              cmd_reg            <= sda;
+              cmd_reg            <= sda_debounced;
             end if;
           end if;
 
@@ -158,9 +197,9 @@ begin
           if scl_rising_reg = '1' then
             bits_processed_reg <= bits_processed_reg + 1;
             if bits_processed_reg < 7 then
-              data_reg(6-bits_processed_reg) <= sda;
+              data_reg(6-bits_processed_reg) <= sda_debounced;
             else
-              data_from_master_reg <= data_reg & sda;
+              data_from_master_reg <= data_reg & sda_debounced;
               data_valid_reg       <= '1';
             end if;
           end if;
@@ -191,9 +230,9 @@ begin
         when read_ack_start =>
           if scl_rising_reg = '1' then
             state_reg <= read_ack_got_rising;
-            if sda = '1' then           -- nack = stop read
+            if sda_debounced = '1' then  -- nack = stop read
               continue_reg <= '0';
-            else               -- ack = continue read
+            else  -- ack = continue read
               continue_reg       <= '1';
               read_req_reg       <= '1';  -- request reg byte
               data_to_master_reg <= data_to_master;
