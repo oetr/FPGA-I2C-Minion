@@ -33,6 +33,8 @@ architecture Testbench of I2C_slave_TB is
   signal data_valid           : std_logic                    := '0';
   signal data_from_master     : std_logic_vector(7 downto 0) := (others => '0');
   signal data_from_master_reg : std_logic_vector(7 downto 0) := (others => '0');
+  -- simulation
+  shared variable ENDSIM : boolean                          := false;
 begin
 
   ---- Design Under Verification -----------------------------------------
@@ -55,12 +57,16 @@ begin
   ---- Clock running forever ---------------------------------------------
   process
   begin
-    clk_test <= '0';
-    wait for T/2;
-    clk_test <= '1';
-    wait for T/2;
+    if ENDSIM = false then
+      clk_test <= '0';
+      wait for T/2;
+      clk_test <= '1';
+      wait for T/2;
+    else
+      wait;
+    end if;
   end process;
-
+  
   ---- Reset asserted for T/2 --------------------------------------------
   rst_test <= '1', '0' after T/2;
 
@@ -484,6 +490,7 @@ begin
     i2c_stop;
 
     wait until rising_edge(clk_test);
-    assert false report "simulation completed successfully" severity failure;
+    ENDSIM := true;
+    wait;
   end process;
 end Testbench;
