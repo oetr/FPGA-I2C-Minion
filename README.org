@@ -19,8 +19,8 @@ For example, a 7 bit address "0000011" corresponds to decimal 3 on the slave, is
 
 * Tests
 A testbench is provided in the design.
-To run the testbench, execute =./tb_sim.sh= shell script.
-To be able to run the script, you need to have ghdl.
+To run the testbench, run =make=, for which you need to have [[https://github.com/tgingold/ghdl][ghdl]].
+If you want no error at the end of a successful simulation in ghdl, in the ghdl library you need to substitute =Error ("simulation stopped by --stop-delta");= by =Info ("simulation stopped by --stop-delta");= in =src/grt/grt-processes.adb=.
 The testbench should also work in ModelSim.
 
 Here is an example of a single write:
