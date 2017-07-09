@@ -1,0 +1,24 @@
+* "read_stop" state
+- Do we need the read_stop state?
+- Why don't we go straight to "idle"?
+
+* Checking for the START state at the end of the main loop
+- Can we have a START before a STOP?
+#+BEGIN_SRC vhdl
+  --------------------------------------------------------
+  -- Reset counter and state on start/stop
+  --------------------------------------------------------
+  if start_reg = '1' then
+    state_reg          <= get_address_and_cmd;
+    bits_processed_reg <= 0;
+  end if;
+#+END_SRC
+
+* Add tests for interrupted transmission
+- Stop a transmission in between, check all bits
+
+* Should I add read_busy, write_busy signals?
+- will save us 1 clock cycle latency
+- see VCT labs code with read_done, write_done signals
+
+
