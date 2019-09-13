@@ -1,17 +1,20 @@
 ------------------------------------------------------------
--- File      : I2C_slave.vhd
+-- File      : I2C_worker.vhd
 ------------------------------------------------------------
 -- Author    : Peter Samarin <peter.samarin@gmail.com>
 ------------------------------------------------------------
--- Copyright (c) 2016 Peter Samarin
+-- Copyright (c) 2019 Peter Samarin
 ------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 ------------------------------------------------------------
-entity I2C_slave is
+entity I2C_worker is
   generic (
-    SLAVE_ADDR : std_logic_vector(6 downto 0));
+    WORKER_ADDR             : std_logic_vector(6 downto 0);
+    USE_INPUT_DEBOUNCING   : boolean := false;
+    -- this assumes that "clk" signal is much faster than SCL
+    DEBOUNCING_WAIT_CYCLES : integer := 4);
   port (
     scl              : inout std_logic;
     sda              : inout std_logic;
@@ -22,12 +25,9 @@ entity I2C_slave is
     data_to_master   : in    std_logic_vector(7 downto 0);
     data_valid       : out   std_logic;
     data_from_master : out   std_logic_vector(7 downto 0));
-end entity I2C_slave;
+end entity I2C_worker;
 ------------------------------------------------------------
-architecture arch of I2C_slave is
-  -- this assumes that system's clock is much faster than SCL
-  constant DEBOUNCING_WAIT_CYCLES : integer   := 4;
-  
+architecture arch of I2C_worker is
   type state_t is (idle, get_address_and_cmd,
                    answer_ack_start, write,
                    read, read_ack_start,
@@ -38,11 +38,14 @@ architecture arch of I2C_slave is
   signal bits_processed_reg : integer range 0 to 8 := 0;
   signal continue_reg       : std_logic            := '0';
 
-  signal scl_reg                  : std_logic := '1';
-  signal sda_reg                  : std_logic := '1';
-  signal scl_debounced            : std_logic := '1';
-  signal sda_debounced            : std_logic := '1';
-  
+  signal scl_reg       : std_logic := '1';
+  signal sda_reg       : std_logic := '1';
+  signal scl_debounced : std_logic := '1';
+  signal sda_debounced : std_logic := '1';
+
+  signal scl_internal : std_logic := '1';
+  signal sda_internal : std_logic := '1';
+
 
   -- Helpers to figure out next state
   signal start_reg       : std_logic := '0';
@@ -56,11 +59,11 @@ architecture arch of I2C_slave is
   signal data_from_master_reg : std_logic_vector(7 downto 0) := (others => '0');
 
   signal scl_prev_reg : std_logic := '1';
-  -- Slave writes on scl
+  -- Worker writes on scl
   signal scl_wen_reg  : std_logic := '0';
   signal scl_o_reg    : std_logic := '0';
   signal sda_prev_reg : std_logic := '1';
-  -- Slave writes on sda
+  -- Worker writes on sda
   signal sda_wen_reg  : std_logic := '0';
   signal sda_o_reg    : std_logic := '0';
 
@@ -70,57 +73,72 @@ architecture arch of I2C_slave is
   signal data_to_master_reg : std_logic_vector(7 downto 0) := (others => '0');
 begin
 
-  -- debounce SCL and SDA
-  SCL_debounce : entity work.debounce
-    generic map (
-      WAIT_CYCLES => DEBOUNCING_WAIT_CYCLES)
-    port map (
-      clk        => clk,
-      signal_in  => scl_reg,
-      signal_out => scl_debounced);
 
-  -- it might not make sense to debounce SDA, since master
-  -- and slave can both write to it...
-  SDA_debounce : entity work.debounce
-    generic map (
-      WAIT_CYCLES => DEBOUNCING_WAIT_CYCLES)
-    port map (
-      clk        => clk,
-      signal_in  => sda_reg,
-      signal_out => sda_debounced);
+  debounce : if USE_INPUT_DEBOUNCING generate
+    -- debounce SCL and SDA
+    SCL_debounce : entity work.debounce
+      generic map (
+        WAIT_CYCLES => DEBOUNCING_WAIT_CYCLES)
+      port map (
+        clk        => clk,
+        signal_in  => scl,
+        signal_out => scl_debounced);
+
+    -- it might not make sense to debounce SDA, since master
+    -- and worker can both write to it...
+    SDA_debounce : entity work.debounce
+      generic map (
+        WAIT_CYCLES => DEBOUNCING_WAIT_CYCLES)
+      port map (
+        clk        => clk,
+        signal_in  => sda,
+        signal_out => sda_debounced);
+
+    scl_internal <= scl_debounced;
+    sda_internal <= sda_debounced;
+
+  end generate debounce;
+
+  dont_debounce : if (not USE_INPUT_DEBOUNCING) generate
+    process (clk) is
+    begin
+      if rising_edge(clk) then
+        scl_internal <= scl;
+        sda_internal <= sda;
+      end if;
+    end process;
+
+  end generate dont_debounce;
+
 
   process (clk) is
   begin
     if rising_edge(clk) then
-      -- save SCL in registers that are used for debouncing
-      scl_reg <= scl;
-      sda_reg <= sda;
-
-      -- Delay debounced SCL and SDA by 1 clock cycle
-      scl_prev_reg   <= scl_debounced;
-      sda_prev_reg   <= sda_debounced;
+      -- Delay SCL and SDA by 1 clock cycle
+      scl_prev_reg   <= scl_internal;
+      sda_prev_reg   <= sda_internal;
       -- Detect rising and falling SCL
       scl_rising_reg <= '0';
-      if scl_prev_reg = '0' and scl_debounced = '1' then
+      if scl_prev_reg = '0' and scl_internal = '1' then
         scl_rising_reg <= '1';
       end if;
       scl_falling_reg <= '0';
-      if scl_prev_reg = '1' and scl_debounced = '0' then
+      if scl_prev_reg = '1' and scl_internal = '0' then
         scl_falling_reg <= '1';
       end if;
 
       -- Detect I2C START condition
       start_reg <= '0';
       stop_reg  <= '0';
-      if scl_debounced = '1' and scl_prev_reg = '1' and
-        sda_prev_reg = '1' and sda_debounced = '0' then
+      if scl_internal = '1' and scl_prev_reg = '1' and
+        sda_prev_reg = '1' and sda_internal = '0' then
         start_reg <= '1';
         stop_reg  <= '0';
       end if;
 
       -- Detect I2C STOP condition
-      if scl_prev_reg = '1' and scl_debounced = '1' and
-        sda_prev_reg = '0' and sda_debounced = '1' then
+      if scl_prev_reg = '1' and scl_internal = '1' and
+        sda_prev_reg = '0' and sda_internal = '1' then
         start_reg <= '0';
         stop_reg  <= '1';
       end if;
@@ -153,16 +171,16 @@ begin
           if scl_rising_reg = '1' then
             if bits_processed_reg < 7 then
               bits_processed_reg             <= bits_processed_reg + 1;
-              addr_reg(6-bits_processed_reg) <= sda_debounced;
+              addr_reg(6-bits_processed_reg) <= sda_internal;
             elsif bits_processed_reg = 7 then
               bits_processed_reg <= bits_processed_reg + 1;
-              cmd_reg            <= sda_debounced;
+              cmd_reg            <= sda_internal;
             end if;
           end if;
 
           if bits_processed_reg = 8 and scl_falling_reg = '1' then
             bits_processed_reg <= 0;
-            if addr_reg = SLAVE_ADDR then  -- check req address
+            if addr_reg = WORKER_ADDR then  -- check req address
               state_reg <= answer_ack_start;
               if cmd_reg = '1' then  -- issue read request 
                 read_req_reg       <= '1';
@@ -170,7 +188,7 @@ begin
               end if;
             else
               assert false
-                report ("I2C: target/slave address mismatch (data is being sent to another slave).")
+                report ("I2C: target/worker address mismatch (data is being sent to another worker).")
                 severity note;
               state_reg <= idle;
             end if;
@@ -197,9 +215,9 @@ begin
           if scl_rising_reg = '1' then
             bits_processed_reg <= bits_processed_reg + 1;
             if bits_processed_reg < 7 then
-              data_reg(6-bits_processed_reg) <= sda_debounced;
+              data_reg(6-bits_processed_reg) <= sda_internal;
             else
-              data_from_master_reg <= data_reg & sda_debounced;
+              data_from_master_reg <= data_reg & sda_internal;
               data_valid_reg       <= '1';
             end if;
           end if;
@@ -230,7 +248,7 @@ begin
         when read_ack_start =>
           if scl_rising_reg = '1' then
             state_reg <= read_ack_got_rising;
-            if sda_debounced = '1' then  -- nack = stop read
+            if sda_internal = '1' then  -- nack = stop read
               continue_reg <= '0';
             else  -- ack = continue read
               continue_reg       <= '1';

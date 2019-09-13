@@ -3,7 +3,7 @@
 ------------------------------------------------------------
 -- Author     : Peter Samarin <peter.samarin@gmail.com>
 ------------------------------------------------------------
--- Copyright (c) 2016 Peter Samarin
+-- Copyright (c) 2019 Peter Samarin
 ------------------------------------------------------------
 -- Description: debouncing circuit that forwards only
 -- signals that have been stable for the whole duration of
