@@ -566,9 +566,12 @@ begin
     -- confirmation)
     --------------------------------------------------------
     print("----------------- Testing wrong addresses -----------------");
-    print("***************** These tests should all fail *************");
+    print("-> The following 3 tests should all fail");
+    print("[0] ---------------");
     i2c_write_bytes("1000011", 100);
-    i2c_read ("0000001", received_data);
+    print("[1] ---------------");
+    i2c_read ("0101101", received_data);
+    print("[2] ---------------");
     i2c_read_bytes ("0000010", 300, received_data);
 
     wait until rising_edge(clk_test);
