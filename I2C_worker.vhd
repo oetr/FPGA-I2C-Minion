@@ -11,7 +11,7 @@ use ieee.numeric_std.all;
 ------------------------------------------------------------
 entity I2C_worker is
   generic (
-    WORKER_ADDR             : std_logic_vector(6 downto 0);
+    WORKER_ADDR            : std_logic_vector(6 downto 0);
     USE_INPUT_DEBOUNCING   : boolean := false;
     -- this assumes that "clk" signal is much faster than SCL
     DEBOUNCING_WAIT_CYCLES : integer := 4);
