@@ -12,8 +12,12 @@ use ieee.numeric_std.all;
 entity I2C_worker is
   generic (
     WORKER_ADDR            : std_logic_vector(6 downto 0);
-    USE_INPUT_DEBOUNCING   : boolean := false;
-    -- this assumes that "clk" signal is much faster than SCL
+    -- noisy SCL/SDA lines can confuse the worker
+    -- use low-pass filter to smooth the signal
+    -- (this might not be necessary!)
+    USE_INPUT_DEBOUNCING   : boolean := false;  
+    -- play with different number of wait cycles
+    -- larger wait cycles increase the resource usage
     DEBOUNCING_WAIT_CYCLES : integer := 4);
   port (
     scl              : inout std_logic;
@@ -46,7 +50,6 @@ architecture arch of I2C_worker is
   signal scl_internal : std_logic := '1';
   signal sda_internal : std_logic := '1';
 
-
   -- Helpers to figure out next state
   signal start_reg       : std_logic := '0';
   signal stop_reg        : std_logic := '0';
@@ -73,7 +76,6 @@ architecture arch of I2C_worker is
   signal data_to_master_reg : std_logic_vector(7 downto 0) := (others => '0');
 begin
 
-
   debounce : if USE_INPUT_DEBOUNCING generate
     -- debounce SCL and SDA
     SCL_debounce : entity work.debounce
@@ -96,7 +98,6 @@ begin
 
     scl_internal <= scl_debounced;
     sda_internal <= sda_debounced;
-
   end generate debounce;
 
   dont_debounce : if (not USE_INPUT_DEBOUNCING) generate
@@ -107,7 +108,6 @@ begin
         sda_internal <= sda;
       end if;
     end process;
-
   end generate dont_debounce;
 
 
