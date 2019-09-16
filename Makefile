@@ -1,6 +1,6 @@
 GHDL = ghdl
-TARGET_001 = I2C_worker_TB_001_ideal
-TARGET_002 = I2C_worker_TB_002_noisy_scl
+TARGET_001 = I2C_minion_TB_001_ideal
+TARGET_002 = I2C_minion_TB_002_noisy_scl
 
 RM = rm -rf
 SIM_DIR = ./sim

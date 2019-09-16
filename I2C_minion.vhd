@@ -1,5 +1,5 @@
 ------------------------------------------------------------
--- File      : I2C_worker.vhd
+-- File      : I2C_minion.vhd
 ------------------------------------------------------------
 -- Author    : Peter Samarin <peter.samarin@gmail.com>
 ------------------------------------------------------------
@@ -9,10 +9,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 ------------------------------------------------------------
-entity I2C_worker is
+entity I2C_minion is
   generic (
-    WORKER_ADDR            : std_logic_vector(6 downto 0);
-    -- noisy SCL/SDA lines can confuse the worker
+    MINION_ADDR            : std_logic_vector(6 downto 0);
+    -- noisy SCL/SDA lines can confuse the minion
     -- use low-pass filter to smooth the signal
     -- (this might not be necessary!)
     USE_INPUT_DEBOUNCING   : boolean := false;  
@@ -29,9 +29,9 @@ entity I2C_worker is
     data_to_master   : in    std_logic_vector(7 downto 0);
     data_valid       : out   std_logic;
     data_from_master : out   std_logic_vector(7 downto 0));
-end entity I2C_worker;
+end entity I2C_minion;
 ------------------------------------------------------------
-architecture arch of I2C_worker is
+architecture arch of I2C_minion is
   type state_t is (idle, get_address_and_cmd,
                    answer_ack_start, write,
                    read, read_ack_start,
@@ -62,11 +62,11 @@ architecture arch of I2C_worker is
   signal data_from_master_reg : std_logic_vector(7 downto 0) := (others => '0');
 
   signal scl_prev_reg : std_logic := '1';
-  -- Worker writes on scl
+  -- Minion writes on scl
   signal scl_wen_reg  : std_logic := '0';
   signal scl_o_reg    : std_logic := '0';
   signal sda_prev_reg : std_logic := '1';
-  -- Worker writes on sda
+  -- Minion writes on sda
   signal sda_wen_reg  : std_logic := '0';
   signal sda_o_reg    : std_logic := '0';
 
@@ -87,7 +87,7 @@ begin
         signal_out => scl_debounced);
 
     -- it might not make sense to debounce SDA, since master
-    -- and worker can both write to it...
+    -- and minion can both write to it...
     SDA_debounce : entity work.debounce
       generic map (
         WAIT_CYCLES => DEBOUNCING_WAIT_CYCLES)
@@ -180,7 +180,7 @@ begin
 
           if bits_processed_reg = 8 and scl_falling_reg = '1' then
             bits_processed_reg <= 0;
-            if addr_reg = WORKER_ADDR then  -- check req address
+            if addr_reg = MINION_ADDR then  -- check req address
               state_reg <= answer_ack_start;
               if cmd_reg = '1' then  -- issue read request 
                 read_req_reg       <= '1';
@@ -188,7 +188,7 @@ begin
               end if;
             else
               assert false
-                report ("I2C: target/worker address mismatch (data is being sent to another worker).")
+                report ("I2C: target/minion address mismatch (data is being sent to another minion).")
                 severity note;
               state_reg <= idle;
             end if;

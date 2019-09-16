@@ -1,7 +1,7 @@
 -----------------------------------------------------------------------------
--- Title      : I2C_worker Testbench: noisy scl
+-- Title      : I2C_minion Testbench: noisy scl
 -----------------------------------------------------------------------------
--- File       : I2C_worker_TB_002_noisy_scl.vhd
+-- File       : I2C_minion_TB_002_noisy_scl.vhd
 -- Author     : Peter Samarin <peter.samarin@gmail.com>
 -----------------------------------------------------------------------------
 -- Copyright (c) 2019 Peter Samarin
@@ -13,10 +13,10 @@ use std.textio.all;
 use work.txt_util.all;
 use ieee.math_real.all;  -- using uniform(seed1,seed2,rand)
 ------------------------------------------------------------------------
-entity I2C_worker_TB_002_noisy_scl is
-end I2C_worker_TB_002_noisy_scl;
+entity I2C_minion_TB_002_noisy_scl is
+end I2C_minion_TB_002_noisy_scl;
 ------------------------------------------------------------------------
-architecture Testbench of I2C_worker_TB_002_noisy_scl is
+architecture Testbench of I2C_minion_TB_002_noisy_scl is
   constant T         : time    := 20 ns;   -- clk period
   constant T_spike   : time    := 1 ns;
   constant TH_I2C    : time    := 100 ns;  -- i2c clk quarter period(kbis)
@@ -56,7 +56,7 @@ architecture Testbench of I2C_worker_TB_002_noisy_scl is
   shared variable timeout_after_sda_spike : integer  := 0;
   shared variable sda_spike_should_happen : real     := 0.0;
 
-  -- one I2C worker for ideal scl/sda signal
+  -- one I2C minion for ideal scl/sda signal
 
   -- simulation control
   shared variable SCL_noise_on : boolean := false;
@@ -65,9 +65,9 @@ architecture Testbench of I2C_worker_TB_002_noisy_scl is
 begin
 
   ---- Design Under Verification -----------------------------------------
-  DUV : entity work.I2C_worker
+  DUV : entity work.I2C_minion
     generic map (
-      WORKER_ADDR            => "0000011",
+      MINION_ADDR            => "0000011",
       USE_INPUT_DEBOUNCING   => true,
       DEBOUNCING_WAIT_CYCLES => 5)
     port map (
@@ -334,7 +334,7 @@ begin
       i2c_set_write;
       state_dbg <= 3;
       -- dummy read ACK--don't care, because we are testing
-      -- I2C worker
+      -- I2C minion
       i2c_read_ack(ack);
       if ack = '0' then
         state_dbg <= 6;
@@ -363,7 +363,7 @@ begin
       i2c_set_write;
       state_dbg <= 3;
       -- dummy read ACK--don't care, because we are testing
-      -- I2C worker
+      -- I2C minion
       i2c_read_ack(ack);
       if ack = '0' then
         state_dbg <= 6;
@@ -430,7 +430,7 @@ begin
       i2c_set_read;
       state_dbg <= 3;
       -- dummy read ACK--don't care, because we are testing
-      -- I2C worker
+      -- I2C minion
       i2c_read_ack(ack);
       if ack = '0' then
         state_dbg <= 6;
@@ -459,7 +459,7 @@ begin
       i2c_set_read;
       state_dbg <= 3;
       -- dummy read ACK--don't care, because we are testing
-      -- I2C worker
+      -- I2C minion
       i2c_read_ack(ack);
       if ack = '0' then
         state_dbg <= 6;
@@ -501,7 +501,7 @@ begin
       end if;
       for i in 0 to nof_bytes-1 loop
         -- dummy read ACK--don't care, because we are testing
-        -- I2C worker
+        -- I2C minion
         state_dbg <= 4;
         i2c_receive_byte(data);
         state_dbg <= 5;
@@ -523,7 +523,7 @@ begin
 
     print("");
     print("------------------------------------------------------------");
-    print("----------------- I2C_worker_TB_001_noisy_scl --------------");
+    print("----------------- I2C_minion_TB_001_noisy_scl --------------");
     print("------------------------------------------------------------");
     scl_pre_spike <= '1';
     sda_pre_spike <= '1';
@@ -571,7 +571,7 @@ begin
     i2c_stop;
 
     --------------------------------------------------------
-    -- Reads, writes from wrong worker addresses
+    -- Reads, writes from wrong minion addresses
     -- this should cause some assertion notes (needs manual
     -- confirmation)
     --------------------------------------------------------

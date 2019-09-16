@@ -1,7 +1,7 @@
 -----------------------------------------------------------------------------
--- Title      : I2C_worker Testbench
+-- Title      : I2C_minion Testbench
 -----------------------------------------------------------------------------
--- File       : I2C_worker_TB_001_ideal
+-- File       : I2C_minion_TB_001_ideal
 -- Author     : Peter Samarin <peter.samarin@gmail.com>
 -----------------------------------------------------------------------------
 -- Copyright (c) 2019 Peter Samarin
@@ -12,10 +12,10 @@ use ieee.numeric_std.all;
 use std.textio.all;
 use work.txt_util.all;
 ------------------------------------------------------------------------
-entity I2C_worker_TB_001_ideal is
-end I2C_worker_TB_001_ideal;
+entity I2C_minion_TB_001_ideal is
+end I2C_minion_TB_001_ideal;
 ------------------------------------------------------------------------
-architecture Testbench of I2C_worker_TB_001_ideal is
+architecture Testbench of I2C_minion_TB_001_ideal is
   constant T         : time    := 20 ns;   -- clk period
   constant TH_I2C    : time    := 100 ns;  -- i2c clk quarter period(kbis)
   constant T_MUL     : integer := 2;  -- i2c clk quarter period(kbis)
@@ -44,9 +44,9 @@ architecture Testbench of I2C_worker_TB_001_ideal is
 begin
 
   ---- Design Under Verification -----------------------------------------
-  DUV : entity work.I2C_worker
+  DUV : entity work.I2C_minion
     generic map (
-      WORKER_ADDR          => "0000011",
+      MINION_ADDR          => "0000011",
       USE_INPUT_DEBOUNCING => false)
     port map (
       -- I2C
@@ -258,7 +258,7 @@ begin
       i2c_set_write;
       state_dbg <= 3;
       -- dummy read ACK--don't care, because we are testing
-      -- I2C worker
+      -- I2C minion
       i2c_read_ack(ack);
       if ack = '0' then
         state_dbg <= 6;
@@ -287,7 +287,7 @@ begin
       i2c_set_write;
       state_dbg <= 3;
       -- dummy read ACK--don't care, because we are testing
-      -- I2C worker
+      -- I2C minion
       i2c_read_ack(ack);
       if ack = '0' then
         state_dbg <= 6;
@@ -354,7 +354,7 @@ begin
       i2c_set_read;
       state_dbg <= 3;
       -- dummy read ACK--don't care, because we are testing
-      -- I2C worker
+      -- I2C minion
       i2c_read_ack(ack);
       if ack = '0' then
         state_dbg <= 6;
@@ -383,7 +383,7 @@ begin
       i2c_set_read;
       state_dbg <= 3;
       -- dummy read ACK--don't care, because we are testing
-      -- I2C worker
+      -- I2C minion
       i2c_read_ack(ack);
       if ack = '0' then
         state_dbg <= 6;
@@ -425,7 +425,7 @@ begin
       end if;
       for i in 0 to nof_bytes-1 loop
         -- dummy read ACK--don't care, because we are testing
-        -- I2C worker
+        -- I2C minion
         state_dbg <= 4;
         i2c_receive_byte(data);
         state_dbg <= 5;
@@ -442,7 +442,7 @@ begin
 
     print("");
     print("------------------------------------------------------------");
-    print("----------------- I2C_worker_TB_001_ideal ------------------");
+    print("----------------- I2C_minion_TB_001_ideal ------------------");
     print("------------------------------------------------------------");
 
     scl <= '1';
@@ -491,7 +491,7 @@ begin
     i2c_stop;
 
     --------------------------------------------------------
-    -- Reads, writes from wrong worker addresses
+    -- Reads, writes from wrong minion addresses
     -- this should cause some assertion notes (needs manual
     -- confirmation)
     --------------------------------------------------------
