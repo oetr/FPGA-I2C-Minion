@@ -43,7 +43,7 @@ architecture Testbench of I2C_minion_TB_002_noisy_scl is
 
   -- random spike generation
   constant MAX_SPIKE_DURATION      : real := 17.0;  -- 17ns
-  constant MAX_TIMEOUT_AFTER_SPIKE : real := 1.0;  -- 1ns
+  constant MAX_TIMEOUT_AFTER_SPIKE : real := 1.0;   -- 1ns
   constant P_SPIKE                 : real := 0.01;
 
   shared variable seed1                   : positive := 1000;
@@ -584,9 +584,9 @@ begin
     print("[2] ---------------");
     i2c_read_bytes ("0000010", 300, received_data);
 
-    
+
     wait until rising_edge(clk);
-      
+
 
     ENDSIM := true;
     print("Simulation end...");

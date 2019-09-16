@@ -15,7 +15,7 @@ entity I2C_minion is
     -- noisy SCL/SDA lines can confuse the minion
     -- use low-pass filter to smooth the signal
     -- (this might not be necessary!)
-    USE_INPUT_DEBOUNCING   : boolean := false;  
+    USE_INPUT_DEBOUNCING   : boolean := false;
     -- play with different number of wait cycles
     -- larger wait cycles increase the resource usage
     DEBOUNCING_WAIT_CYCLES : integer := 4);
