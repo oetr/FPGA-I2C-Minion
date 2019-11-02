@@ -42,13 +42,15 @@ architecture arch of I2C_minion is
   signal bits_processed_reg : integer range 0 to 8 := 0;
   signal continue_reg       : std_logic            := '0';
 
-  signal scl_reg       : std_logic := '1';
-  signal sda_reg       : std_logic := '1';
-  signal scl_debounced : std_logic := '1';
-  signal sda_debounced : std_logic := '1';
+  signal scl_reg       : std_logic := 'Z';
+  signal sda_reg       : std_logic := 'Z';
+  signal scl_debounced : std_logic := 'Z';
+  signal sda_debounced : std_logic := 'Z';
 
-  signal scl_internal : std_logic := '1';
-  signal sda_internal : std_logic := '1';
+  signal scl_pre_internal : std_logic := 'Z';
+  signal scl_internal     : std_logic := '1';
+  signal sda_pre_internal : std_logic := 'Z';
+  signal sda_internal     : std_logic := '1';
 
   -- Helpers to figure out next state
   signal start_reg       : std_logic := '0';
@@ -61,11 +63,11 @@ architecture arch of I2C_minion is
   signal data_reg             : std_logic_vector(6 downto 0) := (others => '0');
   signal data_from_master_reg : std_logic_vector(7 downto 0) := (others => '0');
 
-  signal scl_prev_reg : std_logic := '1';
+  signal scl_prev_reg : std_logic := 'Z';
   -- Minion writes on scl
   signal scl_wen_reg  : std_logic := '0';
-  signal scl_o_reg    : std_logic := '0';
-  signal sda_prev_reg : std_logic := '1';
+  signal scl_o_reg    : std_logic := '0';  -- unused for now
+  signal sda_prev_reg : std_logic := 'Z';
   -- Minion writes on sda
   signal sda_wen_reg  : std_logic := '0';
   signal sda_o_reg    : std_logic := '0';
@@ -96,19 +98,23 @@ begin
         signal_in  => sda,
         signal_out => sda_debounced);
 
-    scl_internal <= scl_debounced;
-    sda_internal <= sda_debounced;
+    scl_pre_internal     <= scl_debounced;
+    sda_pre_internal <= sda_debounced;
   end generate debounce;
 
   dont_debounce : if (not USE_INPUT_DEBOUNCING) generate
     process (clk) is
     begin
       if rising_edge(clk) then
-        scl_internal <= scl;
-        sda_internal <= sda;
+        scl_pre_internal     <= scl;
+        sda_pre_internal <= sda;
       end if;
     end process;
   end generate dont_debounce;
+
+
+  scl_internal <= '0' when scl_pre_internal = '0' else '1';
+  sda_internal <= '0' when sda_pre_internal = '0' else '1';
 
 
   process (clk) is
@@ -232,7 +238,12 @@ begin
         ----------------------------------------------------
         when read =>
           sda_wen_reg <= '1';
-          sda_o_reg   <= data_to_master_reg(7-bits_processed_reg);
+          if data_to_master_reg(7-bits_processed_reg) = '0' then
+            sda_o_reg <= '0';
+          else
+            sda_o_reg <= 'Z';
+          end if;
+
           if scl_falling_reg = '1' then
             if bits_processed_reg < 7 then
               bits_processed_reg <= bits_processed_reg + 1;

@@ -26,11 +26,11 @@ architecture Testbench of I2C_minion_TB_002_noisy_scl is
 
   signal clk : std_logic := '1';
   signal rst : std_logic := '1';
-  signal scl : std_logic := '1';
-  signal sda : std_logic := '1';
+  signal scl : std_logic := 'Z';
+  signal sda : std_logic := 'Z';
 
-  signal scl_pre_spike : std_logic := '1';
-  signal sda_pre_spike : std_logic := '1';
+  signal scl_pre_spike : std_logic := 'Z';
+  signal sda_pre_spike : std_logic := 'Z';
 
   signal state_dbg            : integer                      := 0;
   signal received_data        : std_logic_vector(7 downto 0) := (others => '0');
@@ -112,7 +112,11 @@ begin
       timeout_after_scl_spike := integer(rand_scl*MAX_TIMEOUT_AFTER_SPIKE);
       if SCL_noise_on then
         if scl_spike_should_happen < P_SPIKE then
-          scl <= not scl_pre_spike;
+          if scl = '0' then
+            scl <= 'Z';
+          else
+            scl <= '0';
+          end if;
         else
           scl <= scl_pre_spike;
         end if;
@@ -138,8 +142,10 @@ begin
       timeout_after_sda_spike := integer(rand_sda*MAX_TIMEOUT_AFTER_SPIKE);
       if SDA_noise_on then
         if sda_spike_should_happen < P_SPIKE then
-          if sda_pre_spike = '1' or sda_pre_spike = '0' then
-            sda <= not sda_pre_spike;
+          if sda_pre_spike = '0' then
+            sda <= 'Z';
+          else
+            sda <= '0';
           end if;
         else
           sda <= sda_pre_spike;
@@ -188,9 +194,13 @@ begin
       constant a_bit : in std_logic) is
     begin
       scl_pre_spike <= '0';
-      sda_pre_spike <= a_bit;
+      if a_bit = '0' then
+        sda_pre_spike <= '0';
+      else
+        sda_pre_spike <= 'Z';
+      end if;
       i2c_wait_quarter_clock;
-      scl_pre_spike <= '1';
+      scl_pre_spike <= 'Z';
       i2c_wait_half_clock;
       scl_pre_spike <= '0';
       i2c_wait_quarter_clock;
@@ -203,9 +213,13 @@ begin
       scl_pre_spike <= '0';
       sda_pre_spike <= 'Z';
       i2c_wait_quarter_clock;
-      scl_pre_spike <= '1';
+      scl_pre_spike <= 'Z';
       i2c_wait_quarter_clock;
-      a_bit         := sda;
+      if sda = '0' then
+        a_bit := '0';
+      else
+        a_bit := '1';
+      end if;
       i2c_wait_quarter_clock;
       scl_pre_spike <= '0';
       i2c_wait_quarter_clock;
@@ -245,10 +259,10 @@ begin
     -- START
     procedure i2c_start is
     begin
-      scl_pre_spike <= '1';
+      scl_pre_spike <= 'Z';
       sda_pre_spike <= '0';
       i2c_wait_half_clock;
-      scl_pre_spike <= '1';
+      scl_pre_spike <= 'Z';
       i2c_wait_quarter_clock;
       scl_pre_spike <= '0';
       i2c_wait_quarter_clock;
@@ -260,9 +274,9 @@ begin
       scl_pre_spike <= '0';
       sda_pre_spike <= '0';
       i2c_wait_quarter_clock;
-      scl_pre_spike <= '1';
+      scl_pre_spike <= 'Z';
       i2c_wait_quarter_clock;
-      sda_pre_spike <= '1';
+      sda_pre_spike <= 'Z';
       i2c_wait_half_clock;
       i2c_wait_half_clock;
     end procedure i2c_stop;
@@ -285,7 +299,7 @@ begin
       scl_pre_spike <= '0';
       sda_pre_spike <= 'Z';
       i2c_wait_quarter_clock;
-      scl_pre_spike <= '1';
+      scl_pre_spike <= 'Z';
       if sda = '0' then
         ack <= '1';
       else
@@ -301,9 +315,9 @@ begin
     procedure i2c_write_nack is
     begin
       scl_pre_spike <= '0';
-      sda_pre_spike <= '1';
+      sda_pre_spike <= 'Z';
       i2c_wait_quarter_clock;
-      scl_pre_spike <= '1';
+      scl_pre_spike <= 'Z';
       i2c_wait_half_clock;
       scl_pre_spike <= '0';
       i2c_wait_quarter_clock;
@@ -315,7 +329,7 @@ begin
       scl_pre_spike <= '0';
       sda_pre_spike <= '0';
       i2c_wait_quarter_clock;
-      scl_pre_spike <= '1';
+      scl_pre_spike <= 'Z';
       i2c_wait_half_clock;
       scl_pre_spike <= '0';
       i2c_wait_quarter_clock;
@@ -378,8 +392,8 @@ begin
       scl_pre_spike <= '0';
       sda_pre_spike <= '0';
       i2c_wait_quarter_clock;
-      scl_pre_spike <= '1';
-      sda_pre_spike <= '1';
+      scl_pre_spike <= 'Z';
+      sda_pre_spike <= 'Z';
       i2c_wait_quarter_clock;
     end procedure i2c_quick_write;
 
@@ -474,8 +488,8 @@ begin
       scl_pre_spike <= '0';
       sda_pre_spike <= '0';
       i2c_wait_quarter_clock;
-      scl_pre_spike <= '1';
-      sda_pre_spike <= '1';
+      scl_pre_spike <= 'Z';
+      sda_pre_spike <= 'Z';
       i2c_wait_quarter_clock;
     end procedure i2c_quick_read;
 
@@ -525,8 +539,8 @@ begin
     print("------------------------------------------------------------");
     print("----------------- I2C_minion_TB_001_noisy_scl --------------");
     print("------------------------------------------------------------");
-    scl_pre_spike <= '1';
-    sda_pre_spike <= '1';
+    scl_pre_spike <= 'Z';
+    sda_pre_spike <= 'Z';
 
     print("----------------- Testing a single write ------------------");
     i2c_write("0000011", "11111111");

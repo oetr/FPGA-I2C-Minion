@@ -1,3 +1,4 @@
+* Write a common TB library for i2c master code
 * "read_stop" state
 - Do we need the read_stop state?
 - Why don't we go straight to "idle"?

@@ -24,8 +24,8 @@ architecture Testbench of I2C_minion_TB_001_ideal is
 
   signal clk : std_logic := '1';
   signal rst : std_logic := '1';
-  signal scl : std_logic := '1';
-  signal sda : std_logic := '1';
+  signal scl : std_logic := 'Z';
+  signal sda : std_logic := 'Z';
 
   signal state_dbg            : integer                      := 0;
   signal received_data        : std_logic_vector(7 downto 0) := (others => '0');
@@ -112,9 +112,14 @@ begin
       constant a_bit : in std_logic) is
     begin
       scl <= '0';
-      sda <= a_bit;
+      if a_bit = '0' then
+        sda <= '0';
+      else
+        sda <= 'Z';
+      end if;
+      
       i2c_wait_quarter_clock;
-      scl <= '1';
+      scl <= 'Z';
       i2c_wait_half_clock;
       scl <= '0';
       i2c_wait_quarter_clock;
@@ -127,9 +132,14 @@ begin
       scl   <= '0';
       sda   <= 'Z';
       i2c_wait_quarter_clock;
-      scl   <= '1';
+      scl   <= 'Z';
       i2c_wait_quarter_clock;
-      a_bit := sda;
+      if sda = '0' then
+        a_bit := '0';
+      else
+        a_bit := '1';
+      end if;
+      
       i2c_wait_quarter_clock;
       scl   <= '0';
       i2c_wait_quarter_clock;
@@ -169,10 +179,10 @@ begin
     -- START
     procedure i2c_start is
     begin
-      scl <= '1';
+      scl <= 'Z';
       sda <= '0';
       i2c_wait_half_clock;
-      scl <= '1';
+      scl <= 'Z';
       i2c_wait_quarter_clock;
       scl <= '0';
       i2c_wait_quarter_clock;
@@ -184,9 +194,9 @@ begin
       scl <= '0';
       sda <= '0';
       i2c_wait_quarter_clock;
-      scl <= '1';
+      scl <= 'Z';
       i2c_wait_quarter_clock;
-      sda <= '1';
+      sda <= 'Z';
       i2c_wait_half_clock;
       i2c_wait_half_clock;
     end procedure i2c_stop;
@@ -209,7 +219,7 @@ begin
       scl <= '0';
       sda <= 'Z';
       i2c_wait_quarter_clock;
-      scl <= '1';
+      scl <= 'Z';
       if sda = '0' then
         ack <= '1';
       else
@@ -225,9 +235,9 @@ begin
     procedure i2c_write_nack is
     begin
       scl <= '0';
-      sda <= '1';
+      sda <= 'Z';
       i2c_wait_quarter_clock;
-      scl <= '1';
+      scl <= 'Z';
       i2c_wait_half_clock;
       scl <= '0';
       i2c_wait_quarter_clock;
@@ -239,7 +249,7 @@ begin
       scl <= '0';
       sda <= '0';
       i2c_wait_quarter_clock;
-      scl <= '1';
+      scl <= 'Z';
       i2c_wait_half_clock;
       scl <= '0';
       i2c_wait_quarter_clock;
@@ -302,8 +312,8 @@ begin
       scl       <= '0';
       sda       <= '0';
       i2c_wait_quarter_clock;
-      scl       <= '1';
-      sda       <= '1';
+      scl       <= 'Z';
+      sda       <= 'Z';
       i2c_wait_quarter_clock;
     end procedure i2c_quick_write;
 
@@ -398,8 +408,8 @@ begin
       scl       <= '0';
       sda       <= '0';
       i2c_wait_quarter_clock;
-      scl       <= '1';
-      sda       <= '1';
+      scl       <= 'Z';
+      sda       <= 'Z';
       i2c_wait_quarter_clock;
     end procedure i2c_quick_read;
 
@@ -445,8 +455,8 @@ begin
     print("----------------- I2C_minion_TB_001_ideal ------------------");
     print("------------------------------------------------------------");
 
-    scl <= '1';
-    sda <= '1';
+    scl <= 'Z';
+    sda <= 'Z';
 
     print("----------------- Testing a single write ------------------");
     i2c_write("0000011", "11111111");
